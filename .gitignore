@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 node_modules/
 .env
 __pycache__/
@@ -6,3 +7,7 @@ __pycache__/
 dist/
 build/
 !data/.gitkeep
+=======
+!data/.gitkeep
+data/
+>>>>>>> 0922e1e (added data platform)

@@ -1,0 +1,16 @@
+[project]
+name = "nrtf-3-ch2"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "docling>=2.92.0",
+    "fastparquet>=2026.3.0",
+    "matplotlib>=3.10.9",
+    "pandas>=3.0.2",
+    "pyarrow>=24.0.0",
+    "pydantic>=2.13.3",
+    "scikit-learn>=1.8.0",
+    "xgboost>=3.2.0",
+]
