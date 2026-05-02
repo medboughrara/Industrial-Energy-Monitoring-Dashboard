@@ -31,39 +31,35 @@ def process_data(file_path: str) -> list:
         # Clean NaN values
         df = df.fillna(0)
         
-        time_col = "Time"
-        gas_col = "Débit du gaz naturel moteur en Nm3/h"
-        power_col = "Puissance électrique nette"
-        
-        if gas_col not in df.columns or power_col not in df.columns:
-            logger.warning("Expected columns not found in CSV. Using default or index.")
-            
         processed_data = []
         for index, row in df.iterrows():
-            timestamp = row.get(time_col, str(datetime.now()))
-            gas_flow = float(row.get(gas_col, 0))
-            net_power = float(row.get(power_col, 0))
+            # Use index as a mock timestamp if no time col is present, or just current time
+            timestamp = str(datetime.now())
             
-            # Efficiency (\eta): (Net Power) / (Gas Flow * 9.082 * 1.163) * 100
-            energy_input_kwh = gas_flow * PCI_CONSTANT * THERMIE_TO_KWH
-            efficiency = (net_power / energy_input_kwh * 100) if energy_input_kwh > 0 else 0
+            # Requested features
+            input_energy_kw = float(row.get("feature_input_energy_kw", 0))
+            output_energy_kw = float(row.get("feature_output_energy_kw", 0))
+            energy_delta_kw = float(row.get("feature_energy_delta_kw", 0))
+            total_efficiency_pct = float(row.get("feature_total_efficiency_pct", 0))
+            anomaly = bool(row.get("anomalie", 0))
             
-            # CO2 Emissions: (Gas Flow * 9.082 * 1.163) * 0.202
-            co2 = energy_input_kwh * CO2_FACTOR
+            # Specific raw data columns requested
+            gas_flow = float(row.get("Consommation gaz | Débit du gaz naturel moteur en Nm3/h", 0))
+            net_power = float(row.get("Energie Moteur | Puissance électrique Brute en KW", 0))
+            hw_power = float(row.get("Energymeter eau chaude récupéré | Puissance en KW", 0))
+            cw_power = float(row.get("Energymeter eau glacée | Puissance en KW", 0))
             
-            anomaly = False
-            if gas_flow > 0 and net_power == 0:
-                anomaly = True
-            elif efficiency < 35 and energy_input_kwh > 0:
-                anomaly = True
-                
             processed_data.append({
                 "timestamp": str(timestamp),
-                "net_power": net_power,
+                "feature_input_energy_kw": input_energy_kw,
+                "feature_output_energy_kw": output_energy_kw,
+                "feature_energy_delta_kw": energy_delta_kw,
+                "feature_total_efficiency_pct": total_efficiency_pct,
+                "anomaly": anomaly,
                 "gas_flow": gas_flow,
-                "efficiency": efficiency,
-                "co2": co2,
-                "anomaly": anomaly
+                "net_power": net_power,
+                "hw_power": hw_power,
+                "cw_power": cw_power
             })
             
         return processed_data
@@ -71,7 +67,7 @@ def process_data(file_path: str) -> list:
         logger.error(f"Error reading CSV: {e}")
         return []
 
-data_cache = process_data("data.csv")
+data_cache = process_data("anomaly_detection_results.csv")
 
 @app.websocket("/ws/stream")
 async def websocket_endpoint(websocket: WebSocket):
@@ -85,10 +81,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 await asyncio.sleep(2)
                 continue
                 
-            payload = data_cache[index % len(data_cache)]
+            payload = dict(data_cache[index % len(data_cache)])
+            # Update the timestamp to the CURRENT time of sending
+            payload["timestamp"] = str(datetime.now())
+            
             await websocket.send_json(payload)
             
             index += 1
+            # Small time delay between sending values
             await asyncio.sleep(2)
     except WebSocketDisconnect:
         logger.info("Client disconnected")
